@@ -56,7 +56,7 @@ code { background: var(--surface-2); padding: .1em .35em; border-radius: 4px; wo
 
 /* Cabecera */
 .topbar {
-  position: sticky; top: 0; z-index: 10; background: var(--surface); border-bottom: 1px solid var(--border);
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 10; background: var(--surface); border-bottom: 1px solid var(--border);
   display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 10px 16px; flex-wrap: wrap;
 }
 .brand { display: flex; align-items: center; gap: 10px; }
@@ -195,3 +195,4 @@ summary { cursor: pointer; font-weight: 600; }
   details { display: block; }
   details > * { display: block; }
 }
+.copy-box { width: 100%; margin-top: 10px; font: inherit; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); }

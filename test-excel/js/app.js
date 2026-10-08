@@ -53,6 +53,35 @@
     return r.ok ? formatValue(r.value, fmt) : r.error;
   }
 
+  // Dentro de claude.ai las páginas no pueden usar confirm(), print() ni descargas directas.
+  const inClaude = !!(window.claude && typeof window.claude.use === "function");
+
+  // Confirmación en dos clics (sustituye a confirm(), que no funciona en todos los entornos).
+  function confirmClick(btn, question, action) {
+    btn.addEventListener("click", () => {
+      const reset = () => { if (btn.dataset.armed) { btn.textContent = btn.dataset.armed; delete btn.dataset.armed; } };
+      if (btn.dataset.armed) { reset(); action(); return; }
+      btn.dataset.armed = btn.textContent;
+      btn.textContent = question + " Pulsa otra vez para confirmar";
+      setTimeout(reset, 5000);
+    });
+  }
+
+  async function saveFile(blob, filename) {
+    if (inClaude) {
+      const downloads = await window.claude.use("downloads");
+      if (downloads) {
+        try { await downloads.save({ filename, data: blob }); return; }
+        catch (e) { if (e && e.code === "declined") return; throw new Error(e && e.message ? e.message : "descarga no disponible"); }
+      }
+    }
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  }
+
   function shuffle(arr) {
     const a = arr.slice();
     for (let i = a.length - 1; i > 0; i--) {
@@ -295,13 +324,10 @@
       btn.disabled = true; btn.textContent = "Generando…";
       try {
         const blob = await FileTask.generate(state.fileCode, state.student.name);
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `practica-excel-${state.fileCode}.xlsx`;
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+        await saveFile(blob, `practica-excel-${state.fileCode}.xlsx`);
       } catch (err) {
-        alert("No se pudo generar el archivo: " + err.message);
+        const msg = $("#fileMsg");
+        if (msg) { msg.className = "feedback warn small"; msg.textContent = "No se pudo descargar el archivo: " + err.message; }
       }
       btn.disabled = false; btn.textContent = "⬇ Descargar práctica (.xlsx)";
     };
@@ -324,10 +350,7 @@
     ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
     drop.addEventListener("drop", (e) => handle(e.dataTransfer.files[0]));
     $("#prev").onclick = () => { state.fIndex = FORMULA_TASKS.length - 1; go("formulas"); };
-    if ($("#skip")) $("#skip").onclick = () => {
-      if (!confirm("Si omites la práctica, esa parte contará como cero. ¿Continuar?")) return;
-      state.fileSkipped = true; finish();
-    };
+    if ($("#skip")) confirmClick($("#skip"), "Esta parte contará como cero.", () => { state.fileSkipped = true; finish(); });
     $("#finish").onclick = finish;
   }
 
@@ -482,19 +505,23 @@
       ${cfg.showReview ? reviewHtml(items) : ""}
 
       <section class="card actions no-print">
-        <button class="btn primary" id="print">🖨 Guardar como PDF</button>
+        ${inClaude ? "" : `<button class="btn primary" id="print">🖨 Guardar como PDF</button>`}
         ${mail ? `<a class="btn" href="${mail}">✉ Enviar por correo</a>` : ""}
         ${wa ? `<a class="btn" href="${wa}" target="_blank" rel="noopener">WhatsApp</a>` : ""}
         <button class="btn" id="copy">Copiar resumen</button>
         <button class="btn ghost" id="again">Hacer el test otra vez</button>
       </section>`;
 
-    $("#print").onclick = () => window.print();
+    if ($("#print")) $("#print").onclick = () => window.print();
     $("#copy").onclick = async (e) => {
       try { await navigator.clipboard.writeText(shareText); e.currentTarget.textContent = "✔ Copiado"; }
-      catch (err) { prompt("Copia este texto:", shareText); }
+      catch (err) {
+        const ta = document.createElement("textarea");
+        ta.value = shareText; ta.rows = 6; ta.className = "copy-box"; ta.readOnly = true;
+        e.currentTarget.closest(".actions").after(ta); ta.focus(); ta.select();
+      }
     };
-    $("#again").onclick = () => { if (confirm("Se borrarán tus resultados de este navegador. ¿Continuar?")) { state = fresh(); save(); render(); } };
+    confirmClick($("#again"), "Se borrarán tus resultados.", () => { state = fresh(); save(); render(); });
     if (cfg.resultsEndpoint && !state.submitted) submit();
   }
 
@@ -520,9 +547,7 @@
   // ---------------------------------------------------------------------------
   // Inicio
   // ---------------------------------------------------------------------------
-  document.getElementById("restartBtn").onclick = () => {
-    if (confirm("¿Borrar el avance de este test y empezar de nuevo?")) { state = fresh(); save(); render(); }
-  };
+  confirmClick(document.getElementById("restartBtn"), "¿Borrar el avance?", () => { state = fresh(); save(); render(); });
   document.getElementById("academyName").textContent = cfg.academyName;
   document.getElementById("footerText").textContent = `${cfg.academyName}${cfg.instructorName ? " · " + cfg.instructorName : ""}`;
   document.title = `Test de Nivel Excel · ${cfg.academyName}`;
