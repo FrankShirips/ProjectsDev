@@ -4,12 +4,12 @@
  */
 window.APP_CONFIG = {
   // Nombre que aparece en la cabecera y en el informe.
-  academyName: "Academia Excel",
-  instructorName: "Tu nombre",
+  academyName: "NEXURA",
+  instructorName: "Ing. Francisco Chirips",
 
   // Datos de contacto que se muestran al final del test.
-  contactEmail: "",          // ej. "cursos@midominio.com" (habilita "Enviar por correo")
-  whatsappNumber: "",        // ej. "573001234567" (código de país + número, sin "+")
+  contactEmail: "f.chirips@icloud.com",          // ej. "cursos@midominio.com" (habilita "Enviar por correo")
+  whatsappNumber: "88289779",        // ej. "573001234567" (código de país + número, sin "+")
 
   // URL de la aplicación web de Google Apps Script que guarda cada resultado
   // en una hoja de Google Sheets. Ver apps-script/Code.gs y el README.
