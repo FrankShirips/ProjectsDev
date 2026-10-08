@@ -7,8 +7,9 @@ Plataforma web (HTML + JavaScript, sin servidor) para diagnosticar el nivel de E
 | Parte | Qué evalúa | Cómo se corrige |
 |---|---|---|
 | 1. Conocimientos | 20 preguntas de opción múltiple (5 por nivel), con opción «No lo sé» | Automática |
-| 2. Fórmulas en vivo | 16 ejercicios sobre una hoja de ventas: el estudiante escribe la fórmula y la prueba | Un motor de cálculo (HyperFormula) ejecuta la fórmula y compara el resultado. Acepta español (`=SUMA(A1:A3;B1)`) o inglés (`=SUM(A1:A3,B1)`). En los ejercicios que se «copian hacia abajo» se comprueban las referencias `$`. |
-| 3. Práctica con archivo | El estudiante descarga un .xlsx con **datos únicos** (según un código), lo resuelve en Excel y lo sube | Se lee el archivo en el navegador: valores, si hay fórmulas, formato condicional, gráficos, tablas dinámicas y matrices dinámicas (UNICOS/ORDENAR). |
+| 2. Práctica en Excel | El estudiante descarga **un solo libro .xlsx** con datos únicos (según un código): **una hoja por ejercicio** (Ej01…Ej16: tabla de datos, pregunta y celda amarilla para la fórmula) y un **caso práctico** (hojas Ventas/Respuestas). Lo resuelve en Excel y lo sube. | Se lee el archivo en el navegador: se comparan los resultados que calculó Excel con los esperados y se comprueba que haya fórmulas (no números escritos a mano). En los ejercicios que se arrastran hacia abajo se detecta si faltan los `$`. En el caso práctico también se revisan formato condicional, gráficos, tablas dinámicas y matrices dinámicas. |
+
+Si el estudiante no tiene Excel, puede resolver los 16 ejercicios **en el navegador** (escribiendo las fórmulas en español o inglés; se evalúan con HyperFormula). Si sube el archivo, tienen prioridad las respuestas del archivo.
 
 ### Nota y nivel
 
@@ -21,8 +22,8 @@ Todo esto se ajusta en `js/config.js`.
 ## Personalizar
 
 - `js/config.js`: nombre de la academia, correo, WhatsApp, umbrales, puntos y envío de resultados.
-- `js/content.js`: preguntas, ejercicios de fórmulas, temas de la ruta (nombre, contenido y horas de cada módulo).
-- `js/file-task.js`: el archivo de práctica y su corrección.
+- `js/content.js`: preguntas, ejercicios de fórmulas (cada uno se convierte en una hoja del Excel), temas de la ruta (nombre, contenido y horas de cada módulo).
+- `js/file-task.js`: generación del libro de práctica (datos por estudiante, diseño de cada hoja) y su corrección.
 
 ## Recibir los resultados de tus estudiantes
 
