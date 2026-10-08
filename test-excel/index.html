@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Test de Nivel Excel</title>
+  <meta name="description" content="Evaluación diagnóstica de Excel: nota, nivel y ruta de aprendizaje personalizada.">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%231f6f43'/><text x='16' y='23' font-size='18' font-family='Arial' font-weight='bold' fill='white' text-anchor='middle'>X</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo" aria-hidden="true">X</span>
+      <div>
+        <div class="brand-name" id="academyName">Academia Excel</div>
+        <div class="brand-sub">Test diagnóstico de nivel</div>
+      </div>
+    </div>
+    <div class="progress-wrap" id="progressWrap" hidden>
+      <div class="progress-label"><span id="progressLabel"></span><button type="button" class="link" id="restartBtn">Reiniciar</button></div>
+      <div class="progress"><div class="progress-bar" id="progressBar"></div></div>
+    </div>
+  </header>
+
+  <main id="app" class="container" aria-live="polite">
+    <noscript>Esta plataforma necesita JavaScript activado.</noscript>
+    <p class="muted">Cargando…</p>
+  </main>
+
+  <footer class="footer">
+    <span id="footerText"></span>
+  </footer>
+
+  <!-- Librerías (versiones fijas) -->
+  <script src="https://cdn.jsdelivr.net/npm/hyperformula@3.4.0/dist/hyperformula.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/hyperformula@3.4.0/dist/languages/esES.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+
+  <!-- Aplicación -->
+  <script src="js/config.js"></script>
+  <script src="js/content.js"></script>
+  <script src="js/engine.js"></script>
+  <script src="js/file-task.js"></script>
+  <script src="js/scoring.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
