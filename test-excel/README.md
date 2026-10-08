@@ -37,11 +37,9 @@ Para que **cada resultado llegue automáticamente a una hoja de Google Sheets**:
 
 ## Publicar en GitHub Pages
 
-El repositorio incluye `.github/workflows/deploy-pages.yml`, que publica la carpeta `test-excel/` cada vez que hay cambios en `main`.
+Publicado en **https://frankshirips.github.io/ProjectsDev/** desde la rama `gh-pages`.
 
-1. En GitHub: **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-2. Haz merge a `main` (o ejecuta el workflow a mano desde la pestaña **Actions**).
-3. El test quedará en `https://<tu-usuario>.github.io/<repositorio>/`.
+El workflow `.github/workflows/deploy-pages.yml` copia la carpeta `test-excel/` a `gh-pages` cada vez que hay cambios en `main` o en la rama de desarrollo; GitHub Pages se actualiza en 1–2 minutos. También puedes lanzarlo a mano desde la pestaña **Actions**.
 
 ## Probar en tu computador
 
