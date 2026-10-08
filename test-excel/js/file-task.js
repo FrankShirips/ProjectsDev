@@ -1,6 +1,7 @@
 /*
- * Parte 3: práctica con archivo real.
- *  - generate(): crea un .xlsx con datos únicos para cada estudiante (según un código).
+ * Parte 2: práctica en Excel con un solo archivo.
+ *  - generate(): crea un .xlsx con una hoja por ejercicio (Ej01…Ej16) y un caso
+ *    práctico (Ventas / Respuestas), con datos únicos según un código.
  *  - grade(): lee el .xlsx que sube el estudiante y lo corrige automáticamente.
  *
  * El código se guarda dentro del archivo, así que las respuestas esperadas se
@@ -82,6 +83,50 @@
     };
   }
 
+  // --- Datos de los ejercicios (misma estructura que CONTENT.SHEET) --------
+  // Cantidades, precios, días e impuesto cambian según el código; vendedores,
+  // regiones, códigos y meses se mantienen para que todas las preguntas tengan sentido.
+  const sheetCache = {};
+  function exerciseSheet(code) {
+    const key = String(code || "").toUpperCase();
+    if (sheetCache[key]) return sheetCache[key];
+    const base = window.CONTENT.SHEET;
+    if (!key) return base;
+    const rnd = mulberry32(hashCode(key + "-ejercicios"));
+    const prices = {};
+    base.rows.slice(1, 6).forEach((r) => {
+      if (r[8]) prices[r[8]] = Math.max(5, Math.round((({ P01: 25, P02: 40, P03: 15, P04: 30, P05: 120 })[r[8]] || 30) * (0.8 + rnd() * 0.4)));
+    });
+    const taxes = [0.12, 0.15, 0.16, 0.18, 0.19];
+    // Días aleatorios, ordenados dentro de cada mes para que la tabla siga cronológica.
+    const monthOf = (v) => new Date(Date.UTC(1899, 11, 30) + v * 86400000).getUTCMonth() + 1;
+    const days = {};
+    base.rows.slice(1).forEach((r) => (days[monthOf(r[0])] = days[monthOf(r[0])] || []).push(1 + Math.floor(rnd() * 28)));
+    Object.values(days).forEach((list) => list.sort((x, y) => x - y));
+    const rows = base.rows.map((r, i) => {
+      const row = r.slice();
+      if (i === 0) return row;
+      const m = monthOf(r[0]);
+      row[0] = serial(2026, m, days[m].shift());
+      row[4] = 1 + Math.floor(rnd() * 20);
+      row[5] = prices[r[3]];
+      if (i === 1) row[13] = taxes[Math.floor(rnd() * taxes.length)];
+      return row;
+    });
+    // Las fechas siguen en orden dentro de cada mes.
+    return (sheetCache[key] = { ...base, rows });
+  }
+
+  const EX_ANSWER = "D20"; // celda de respuesta en las hojas de una sola respuesta
+  const exName = (i) => "Ej" + String(i + 1).padStart(2, "0");
+  const plain = (html) => html.replace(/<[^>]+>/g, "");
+  function excelText(t) {
+    let txt = plain(t.text).replace(/\s*(Tu fórmula|La fórmula)?\s*[Ss]e copiará[^.]*\./g, "").trim();
+    if (t.fillTo) txt += ` Escribe la fórmula en ${t.cell} y cópiala (arrástrala) hasta ${t.cell.replace(/\d+/, t.fillTo)}: las celdas amarillas.`;
+    else txt += ` Escribe tu fórmula en la celda amarilla ${EX_ANSWER}.`;
+    return txt;
+  }
+
   // Elementos que se revisan en el archivo (nivel y tema para la nota).
   const CHECK_DEFS = [
     { id: "x-importe", level: 1, topic: "basicas", label: "Columna Importe (Cantidad × Precio)" },
@@ -122,14 +167,20 @@
       ["Estudiante: " + (studentName || ""), { italic: true }],
       [""],
       ["Trabaja SOLO en este archivo y súbelo de nuevo a la plataforma en formato .xlsx.", { bold: true }],
-      ["Usa fórmulas siempre que puedas: el sistema revisa tanto el resultado como si la celda contiene una fórmula."],
+      ["Usa fórmulas: el sistema revisa el resultado y que la celda contenga una fórmula (no el número escrito a mano)."],
+      ["No cambies los nombres de las hojas ni muevas las tablas."],
       [""],
-      ["Hoja «Ventas»", { bold: true }],
+      ["Ejercicios (hojas Ej01 a Ej" + String(window.CONTENT.FORMULA_TASKS.length).padStart(2, "0") + ")", { bold: true }],
+      ["Cada hoja tiene la tabla de ventas, la tabla de productos y los parámetros. Debajo está la pregunta y la celda amarilla donde va tu fórmula."],
+      ["Van de más fácil a más difícil. Si no sabes uno, déjalo en blanco y sigue."],
+      ["Consejo: mientras escribes una referencia, pulsa F4 para fijarla con $ (por ejemplo $N$2) antes de arrastrar la fórmula."],
+      [""],
+      ["Caso práctico: hoja «Ventas»", { bold: true }],
       ["1. En la columna G (Importe) calcula Cantidad × Precio para todas las filas."],
       ["2. En la columna H (Clasificación) escribe \"Alta\" si el Importe es mayor o igual a " + c.threshold + " y \"Baja\" en caso contrario (con fórmula)."],
       ["3. Aplica un formato condicional a la columna G (Importe) de la hoja Ventas (cualquier regla)."],
       [""],
-      ["Hoja «Respuestas» (celdas amarillas)", { bold: true }],
+      ["Caso práctico: hoja «Respuestas» (celdas amarillas)", { bold: true }],
       ["4. Completa los totales generales, las unidades por región y la pregunta sobre el vendedor."],
       ["5. Indica el producto con más unidades vendidas (puedes usar una tabla dinámica o fórmulas)."],
       ["6. Nivel experto: en C21 escribe UNA fórmula que devuelva la lista de vendedores sin repetir, ordenada alfabéticamente (se desborda hacia abajo)."],
@@ -145,6 +196,57 @@
       cell.value = t;
       if (font) cell.font = font;
       cell.alignment = { wrapText: true, vertical: "top" };
+    });
+
+    // Ejercicios: una hoja por pregunta
+    const ex = exerciseSheet(code);
+    const LEVEL_NAMES = ["", "Básico", "Intermedio", "Avanzado", "Experto"];
+    const border = { style: "thin", color: { argb: "FFB7C7BC" } };
+    const box = { top: border, left: border, bottom: border, right: border };
+    window.CONTENT.FORMULA_TASKS.forEach((t, i) => {
+      const sh = wb.addWorksheet(exName(i), { properties: { tabColor: { argb: "FFFFD966" } } });
+      const widths = { A: 12, B: 11, C: 10, D: 14, E: 10, F: 10, G: 14, H: 3, I: 9, J: 13, K: 12, L: 3, M: 15, N: 9 };
+      Object.entries(widths).forEach(([c, w]) => (sh.getColumn(c).width = w));
+      ex.rows.forEach((row, r) => {
+        row.forEach((v, ci) => {
+          if (v === "" || v === null || v === undefined) return;
+          const col = ex.columns[ci];
+          const cell = sh.getCell(col + (r + 1));
+          if (r > 0 && col === "A" && typeof v === "number") {
+            cell.value = new Date(Date.UTC(1899, 11, 30) + v * 86400000);
+            cell.numFmt = "dd/mm/yyyy";
+          } else cell.value = v;
+          if (r === 0) { cell.fill = head; cell.font = headFont; }
+          else if (col === "F") cell.numFmt = "#,##0.00";
+          else if (col + (r + 1) === "N2") cell.numFmt = "0%";
+        });
+      });
+      const answerCells = t.fillTo
+        ? Array.from({ length: t.fillTo - 1 }, (_, k) => t.cell.replace(/\d+/, String(k + 2)))
+        : [EX_ANSWER];
+      if (t.fillTo) {
+        const h = sh.getCell(t.cell.replace(/\d+/, "1"));
+        h.value = "Respuesta"; h.fill = head; h.font = headFont;
+      }
+      answerCells.forEach((a) => { const c = sh.getCell(a); c.fill = yellow; c.border = box; if (t.display === "date") c.numFmt = "dd/mm/yyyy"; });
+
+      const title = sh.getCell("A15");
+      title.value = `Ejercicio ${i + 1} de ${window.CONTENT.FORMULA_TASKS.length} · Nivel ${LEVEL_NAMES[t.level]}`;
+      title.font = { bold: true, size: 13, color: { argb: "FF1F6F43" } };
+      sh.mergeCells("A16:N18");
+      const q = sh.getCell("A16");
+      q.value = excelText(t);
+      q.font = { size: 12 };
+      q.alignment = { wrapText: true, vertical: "top" };
+      q.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFE3F1E8" } };
+      q.border = box;
+      [16, 17, 18].forEach((r) => (sh.getRow(r).height = 22));
+      sh.mergeCells("A20:C20");
+      const lab = sh.getCell("A20");
+      lab.value = t.fillTo ? `Respuesta: columna ${t.cell.replace(/\d+/, "")} (celdas amarillas) ↑` : "Tu respuesta (fórmula) →";
+      lab.font = { bold: true };
+      lab.alignment = { horizontal: t.fillTo ? "left" : "right" };
+      sh.views = [{ activeCell: t.fillTo ? t.cell : EX_ANSWER }];
     });
 
     // Ventas
@@ -270,7 +372,14 @@
     if (!code) throw new Error("El archivo no contiene el código de la práctica. Descarga la práctica desde esta plataforma.");
     const ventas = book.sheets["Ventas"];
     const resp = book.sheets["Respuestas"];
-    if (!ventas || !resp) throw new Error("No se encontraron las hojas «Ventas» y «Respuestas». No cambies sus nombres.");
+    const exercises = gradeExercises(book, code);
+    const hasExercises = Object.keys(exercises).length > 0;
+    if (!hasExercises && (!ventas || !resp)) throw new Error("No se encontraron las hojas de la práctica (Ej01…, Ventas, Respuestas). No cambies sus nombres.");
+
+    const base = { code, studentInFile: ctl && ctl.cells.B2 ? String(ctl.cells.B2.value || "") : "", codeMismatch: !!expectedCode && code !== expectedCode, exercises };
+    if (!ventas || !resp) {
+      return { ...base, caseFound: false, checks: CHECK_DEFS.map((d) => ({ ...d, score: 0, note: "No se encontró el caso práctico en el archivo." })) };
+    }
 
     const c = buildCase(code);
     const E = c.expected;
@@ -325,13 +434,44 @@
     const usesFormula = fC21.hasFormula && /UNIQUE|UNICOS|SORT|ORDENAR/i.test(fC21.formula || "");
     push("x-unicos", listOk ? (usesFormula ? 1 : 0.5) : 0, listOk && !usesFormula ? "Lista correcta, pero no se detectó UNICOS/ORDENAR." : "");
 
-    return {
-      code,
-      studentInFile: ctl && ctl.cells.B2 ? String(ctl.cells.B2.value || "") : "",
-      codeMismatch: !!expectedCode && code !== expectedCode,
-      checks,
-    };
+    return { ...base, caseFound: true, checks };
   }
 
-  window.FileTask = { newCode, generate, grade, buildCase, readXlsx, ANSWERS, CHECK_DEFS };
+  // Corrige las hojas Ej01…: compara los valores que calculó Excel con los esperados.
+  function gradeExercises(book, code) {
+    const rows = exerciseSheet(code).rows;
+    const out = {};
+    const toResult = (k) => (k.value && typeof k.value === "object" && k.value.error
+      ? { ok: false, error: k.value.error }
+      : { ok: true, value: k.value === null ? "" : k.value });
+    const cleanFormula = (f) => "=" + String(f || "").replace(/_xlfn\.|_xlws\.|_xlpm\./g, "");
+    window.CONTENT.FORMULA_TASKS.forEach((t, i) => {
+      const sh = book.sheets[exName(i)];
+      if (!sh) return;
+      const addrs = t.fillTo
+        ? Array.from({ length: t.fillTo - 1 }, (_, k) => t.cell.replace(/\d+/, String(k + 2)))
+        : [EX_ANSWER];
+      const cells = addrs.map((a) => sh.cells[a] || { value: null, hasFormula: false });
+      const answered = cells.some((k) => k.hasFormula || (k.value !== null && k.value !== ""));
+      if (!answered) { out[t.id] = { answered: false }; return; }
+      const expected = FormulaEngine.evaluate(rows, t.ref, t.cell, t.fillTo).results;
+      const matches = expected.map((e, k) => FormulaEngine.valuesMatch(toResult(cells[k]), e));
+      const allFormula = cells.every((k) => k.hasFormula);
+      let score = 0, note = "";
+      if (matches.every(Boolean)) {
+        if (allFormula) score = 1;
+        else note = "El resultado es correcto, pero se escribió a mano: se pedía una fórmula.";
+      } else if (t.fillTo && matches[0]) {
+        note = "La primera fila es correcta, pero al copiar la fórmula hacia abajo falla (¿faltan $?).";
+      }
+      const first = cells[0];
+      const given = first.hasFormula && first.formula && first.formula !== "(shared)"
+        ? cleanFormula(first.formula)
+        : (first.value === null ? "(vacío)" : String(first.value && first.value.error ? first.value.error : first.value));
+      out[t.id] = { answered: true, score, note, given };
+    });
+    return out;
+  }
+
+  window.FileTask = { newCode, generate, grade, buildCase, readXlsx, exerciseSheet, ANSWERS, CHECK_DEFS };
 })();
