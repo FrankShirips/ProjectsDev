@@ -1,10 +1,11 @@
 /*
- * Flujo de la aplicación: bienvenida → teoría → fórmulas → archivo → resultados.
+ * Flujo de la aplicación: bienvenida → teoría → práctica en Excel → resultados.
+ * Si el estudiante no tiene Excel, puede resolver los ejercicios en el navegador.
  * El progreso se guarda en el navegador para no perderlo al recargar.
  */
 (function () {
   const cfg = window.APP_CONFIG;
-  const { LEVELS, QUESTIONS, SHEET, FORMULA_TASKS } = window.CONTENT;
+  const { LEVELS, QUESTIONS, FORMULA_TASKS } = window.CONTENT;
   const STORE_KEY = "excelLevelTest.v1";
   const app = document.getElementById("app");
 
@@ -14,7 +15,7 @@
   const fresh = () => ({
     step: "welcome", student: {}, startedAt: null, finishedAt: null,
     qIndex: 0, fIndex: 0, optionOrder: {}, mc: {}, formulas: {},
-    fileCode: null, fileResult: null, fileSkipped: false, submitted: false,
+    fileCode: null, fileResult: null, submitted: false,
   });
   let state = load() || fresh();
 
@@ -33,6 +34,8 @@
   // ---------------------------------------------------------------------------
   const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const $ = (sel) => app.querySelector(sel);
+  // Datos de los ejercicios de este estudiante (cambian según su código).
+  const sheet = () => FileTask.exerciseSheet(state.fileCode);
 
   function formatValue(v, fmt) {
     if (v === null || v === undefined || v === "") return "";
@@ -93,11 +96,11 @@
 
   function setProgress() {
     const wrap = document.getElementById("progressWrap");
-    const total = QUESTIONS.length + FORMULA_TASKS.length + 1;
+    const total = QUESTIONS.length + FORMULA_TASKS.length;
     let done = 0, label = "";
-    if (state.step === "theory") { done = state.qIndex; label = "Parte 1 de 3 · Conocimientos"; }
-    else if (state.step === "formulas") { done = QUESTIONS.length + state.fIndex; label = "Parte 2 de 3 · Fórmulas"; }
-    else if (state.step === "file") { done = QUESTIONS.length + FORMULA_TASKS.length; label = "Parte 3 de 3 · Práctica con archivo"; }
+    if (state.step === "theory") { done = state.qIndex; label = "Parte 1 de 2 · Conocimientos"; }
+    else if (state.step === "formulas") { done = QUESTIONS.length + state.fIndex; label = "Parte 2 de 2 · Ejercicios en el navegador"; }
+    else if (state.step === "file" || state.step === "intro2") { done = QUESTIONS.length; label = "Parte 2 de 2 · Práctica en Excel"; }
     else { wrap.hidden = true; return; }
     wrap.hidden = false;
     document.getElementById("progressLabel").textContent = label;
@@ -120,8 +123,7 @@
         <p class="lead">Este test diagnóstico te da una <b>nota de 0 a 100</b>, te ubica en un <b>nivel</b> y genera una <b>ruta de aprendizaje personalizada</b> para tu curso.</p>
         <div class="parts">
           <div class="part"><span class="part-num">1</span><div><b>Conocimientos</b><br><span class="muted">${QUESTIONS.length} preguntas de opción múltiple</span></div></div>
-          <div class="part"><span class="part-num">2</span><div><b>Fórmulas en vivo</b><br><span class="muted">${FORMULA_TASKS.length} ejercicios: escribes la fórmula como en Excel</span></div></div>
-          <div class="part"><span class="part-num">3</span><div><b>Práctica con archivo</b><br><span class="muted">Descargas un Excel, lo resuelves y lo subes</span></div></div>
+          <div class="part"><span class="part-num">2</span><div><b>Práctica en Excel</b><br><span class="muted">Descargas un libro con ${FORMULA_TASKS.length} ejercicios (una hoja por pregunta) y un caso práctico, lo resuelves en Excel y lo subes</span></div></div>
         </div>
         <p class="muted small">Duración aproximada: 45–60 minutos. Tu avance se guarda en este navegador. Si no sabes una respuesta, elige «No lo sé»: adivinar hace que tu ruta sea menos precisa.</p>
       </section>
@@ -156,6 +158,7 @@
       state = fresh();
       state.student = Object.fromEntries(fd.entries());
       state.startedAt = new Date().toISOString();
+      state.fileCode = FileTask.newCode();
       QUESTIONS.forEach((q) => (state.optionOrder[q.id] = shuffle(q.options.map((_, i) => i))));
       go("theory");
     });
@@ -163,7 +166,7 @@
 
   function renderTheory() {
     const i = state.qIndex;
-    if (i >= QUESTIONS.length) return go("intro2");
+    if (i >= QUESTIONS.length) return go("file");
     const q = QUESTIONS[i];
     const order = state.optionOrder[q.id] || q.options.map((_, k) => k);
     const chosen = state.mc[q.id];
@@ -177,7 +180,7 @@
         </div>
         <div class="nav">
           <button class="btn ghost" id="prev" ${i === 0 ? "disabled" : ""}>← Anterior</button>
-          <button class="btn primary" id="next" ${chosen === undefined ? "disabled" : ""}>${i === QUESTIONS.length - 1 ? "Ir a fórmulas →" : "Siguiente →"}</button>
+          <button class="btn primary" id="next" ${chosen === undefined ? "disabled" : ""}>${i === QUESTIONS.length - 1 ? "Ir a la práctica en Excel →" : "Siguiente →"}</button>
         </div>
       </section>`;
     app.querySelectorAll("input[name=opt]").forEach((inp) => inp.addEventListener("change", () => {
@@ -192,20 +195,22 @@
   function renderIntroFormulas() {
     app.innerHTML = `
       <section class="card">
-        <h2>Parte 2 · Fórmulas en vivo</h2>
-        <p>Verás una hoja de cálculo con datos de ventas y una tabla de productos. En cada ejercicio escribe la fórmula <b>como la escribirías en Excel</b>.</p>
+        <h2>Ejercicios en el navegador</h2>
+        <p>Esta opción es para quien no puede usar Excel. Verás la misma hoja de datos de tu archivo y escribirás cada fórmula <b>como la escribirías en Excel</b>. Si después subes el archivo de Excel, se usarán las respuestas del archivo.</p>
         <ul class="tips">
           <li>Puedes escribir en <b>español</b> (<code>=SUMA(E2:E13)</code>, separador <code>;</code>) o en <b>inglés</b> (<code>=SUM(E2:E13)</code>, separador <code>,</code>).</li>
           <li>Pulsa <b>Probar</b> para ver el resultado en la hoja antes de continuar. Puedes probar todas las veces que quieras.</li>
           <li>Algunas fórmulas se copiarán hacia abajo automáticamente: cuida las referencias (<code>$</code>).</li>
           <li>Se evalúa el resultado: cualquier fórmula correcta vale. Escribir el número a mano no cuenta.</li>
         </ul>
-        <div class="nav"><span></span><button class="btn primary" id="go">Empezar ejercicios →</button></div>
+        <div class="nav"><button class="btn ghost" id="back">← Volver a la práctica en Excel</button><button class="btn primary" id="go">Empezar ejercicios →</button></div>
       </section>`;
-    $("#go").onclick = () => go("formulas");
+    $("#go").onclick = () => { state.fIndex = 0; go("formulas"); };
+    $("#back").onclick = () => go("file");
   }
 
   function gridHtml(task, preview) {
+    const SHEET = sheet();
     const cols = SHEET.columns;
     const target = FormulaEngine.parseAddress(task.cell);
     const targetCol = cols[target.col];
@@ -253,7 +258,7 @@
           <button class="btn ghost" id="prev">← Anterior</button>
           <div class="nav-right">
             <button class="btn ghost" id="skip">No lo sé</button>
-            <button class="btn primary" id="next">${i === FORMULA_TASKS.length - 1 ? "Ir a la práctica →" : "Guardar y seguir →"}</button>
+            <button class="btn primary" id="next">${i === FORMULA_TASKS.length - 1 ? "Terminar ejercicios →" : "Guardar y seguir →"}</button>
           </div>
         </div>
       </section>`;
@@ -261,7 +266,7 @@
     const tryIt = () => {
       const f = input.value.trim();
       if (!f) return;
-      const { results, parseError } = FormulaEngine.evaluate(SHEET.rows, f, t.cell, t.fillTo);
+      const { results, parseError } = FormulaEngine.evaluate(sheet().rows, f, t.cell, t.fillTo);
       $("#grid").innerHTML = gridHtml(t, results);
       const fb = $("#feedback");
       if (parseError) {
@@ -282,7 +287,7 @@
     const store = (val) => { state.formulas[t.id] = val; state.fIndex = i + 1; go("formulas"); };
     $("#prev").onclick = () => {
       if (input.value.trim()) state.formulas[t.id] = input.value.trim();
-      if (i === 0) { state.qIndex = QUESTIONS.length - 1; go("theory"); } else { state.fIndex = i - 1; go("formulas"); }
+      if (i === 0) go("intro2"); else { state.fIndex = i - 1; go("formulas"); }
     };
     $("#skip").onclick = () => store(null);
     $("#next").onclick = () => {
@@ -295,13 +300,19 @@
   function renderFile() {
     if (!state.fileCode) { state.fileCode = FileTask.newCode(); save(); }
     const r = state.fileResult;
+    const browserDone = Object.values(state.formulas).filter(Boolean).length;
     app.innerHTML = `
       <section class="card">
-        <h2>Parte 3 · Práctica con archivo</h2>
-        <p>Ahora trabajarás en Excel de verdad. El archivo tiene datos <b>únicos para ti</b> (código <b class="mono">${esc(state.fileCode)}</b>).</p>
+        <h2>Parte 2 · Práctica en Excel</h2>
+        <p>Ahora trabajarás en Excel de verdad, con clics, <kbd>F4</kbd> para fijar referencias con <code>$</code> y arrastrando fórmulas. El archivo tiene datos <b>únicos para ti</b> (código <b class="mono">${esc(state.fileCode)}</b>).</p>
         <ol class="steps">
           <li><button class="btn primary" id="download">⬇ Descargar práctica (.xlsx)</button></li>
-          <li>Ábrelo en Excel (escritorio o web) y sigue la hoja <b>Instrucciones</b>. Rellena las celdas amarillas.</li>
+          <li>Ábrelo en Excel (escritorio o web). Contiene:
+            <ul>
+              <li><b>Ej01 a Ej${String(FORMULA_TASKS.length).padStart(2, "0")}</b>: una hoja por ejercicio, con los datos, la pregunta y una celda amarilla para tu fórmula.</li>
+              <li><b>Ventas</b> y <b>Respuestas</b>: un caso práctico más amplio (tabla dinámica, gráfico, formato condicional…).</li>
+            </ul>
+          </li>
           <li>Guarda como <b>.xlsx</b> y súbelo aquí:
             <label class="drop" id="drop">
               <input type="file" id="upload" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet">
@@ -310,14 +321,12 @@
           </li>
         </ol>
         <div id="fileMsg" class="feedback small">${r ? fileSummary(r) : ""}</div>
+        <p class="muted small">¿No tienes Excel? Puedes abrir el archivo gratis en Excel para la web (office.com) o en Google Sheets y descargarlo como .xlsx.
+          Si no puedes, <button type="button" class="link" id="browserMode">resuelve los ejercicios aquí en el navegador</button>${browserDone ? ` (llevas ${browserDone} de ${FORMULA_TASKS.length})` : ""}.</p>
         <div class="nav">
           <button class="btn ghost" id="prev">← Anterior</button>
-          <div class="nav-right">
-            ${r ? "" : `<button class="btn ghost" id="skip">Omitir esta parte</button>`}
-            <button class="btn primary" id="finish" ${r ? "" : "disabled"}>Ver mis resultados →</button>
-          </div>
+          <button class="btn primary" id="finish">Ver mis resultados →</button>
         </div>
-        <p class="muted small">¿No tienes Excel? Puedes abrir el archivo gratis en Excel para la web (office.com) o en Google Sheets y descargarlo como .xlsx. Si omites esta parte, sus puntos cuentan como cero.</p>
       </section>`;
     $("#download").onclick = async (e) => {
       const btn = e.currentTarget;
@@ -338,7 +347,7 @@
       try {
         const res = await FileTask.grade(await file.arrayBuffer(), state.fileCode);
         res.fileName = file.name;
-        state.fileResult = res; state.fileSkipped = false; save();
+        state.fileResult = res; save();
         renderFile();
       } catch (err) {
         msg.className = "feedback warn small"; msg.textContent = err.message;
@@ -349,14 +358,18 @@
     ["dragenter", "dragover"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add("over"); }));
     ["dragleave", "drop"].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove("over"); }));
     drop.addEventListener("drop", (e) => handle(e.dataTransfer.files[0]));
-    $("#prev").onclick = () => { state.fIndex = FORMULA_TASKS.length - 1; go("formulas"); };
-    if ($("#skip")) confirmClick($("#skip"), "Esta parte contará como cero.", () => { state.fileSkipped = true; finish(); });
-    $("#finish").onclick = finish;
+    $("#browserMode").onclick = () => go("intro2");
+    $("#prev").onclick = () => { state.qIndex = QUESTIONS.length - 1; go("theory"); };
+    if (r || browserDone) $("#finish").onclick = finish;
+    else confirmClick($("#finish"), "No has subido el archivo: la práctica contará como cero.", finish);
   }
 
   function fileSummary(r) {
-    const found = r.checks.filter((c) => c.score > 0).length;
-    let s = `Archivo «${esc(r.fileName || "")}» procesado: se detectaron ${found} de ${r.checks.length} elementos resueltos.`;
+    const ex = Object.values(r.exercises || {});
+    const answered = ex.filter((e) => e.answered).length;
+    const caseDone = r.checks.filter((c) => c.score > 0).length;
+    let s = `Archivo «${esc(r.fileName || "")}» procesado: ${answered} de ${FORMULA_TASKS.length} ejercicios respondidos`;
+    s += r.caseFound ? ` y ${caseDone} de ${r.checks.length} elementos del caso práctico.` : ". No se encontró el caso práctico.";
     if (r.codeMismatch) s += ` <span class="warn">Atención: el archivo tiene el código ${esc(r.code)}, distinto al tuyo.</span>`;
     return s;
   }
@@ -371,26 +384,33 @@
       items.push({ id: q.id, part: "teoria", level: q.level, topic: q.topic, score: a === q.answer ? 1 : 0,
         label: q.text, given: a === undefined || a === -1 ? "No lo sé" : q.options[a], correct: q.options[q.answer] });
     });
+    const fromFile = (state.fileResult && state.fileResult.exercises) || {};
     FORMULA_TASKS.forEach((t) => {
+      const label = t.text.replace(/<[^>]+>/g, "").replace(/\s*(Tu fórmula|La fórmula)?\s*[Ss]e copiará[^.]*\./g, "");
+      const fx = fromFile[t.id];
+      if (fx && fx.answered) {
+        items.push({ id: t.id, part: "formulas", level: t.level, topic: t.topic, score: fx.score,
+          label, given: fx.given, correct: t.solution, note: fx.note });
+        return;
+      }
       const f = state.formulas[t.id];
-      const expected = FormulaEngine.evaluate(SHEET.rows, t.ref, t.cell, t.fillTo).results;
+      const rows = sheet().rows;
+      const expected = FormulaEngine.evaluate(rows, t.ref, t.cell, t.fillTo).results;
       let score = 0, note = "";
       if (f) {
-        const got = FormulaEngine.evaluate(SHEET.rows, f, t.cell, t.fillTo).results;
+        const got = FormulaEngine.evaluate(rows, f, t.cell, t.fillTo).results;
         const matches = expected.map((e, k) => FormulaEngine.valuesMatch(got[k] || { ok: false }, e));
         if (!FormulaEngine.hasCellReference(f)) note = "La fórmula no usa referencias a celdas.";
         else if (matches.every(Boolean)) score = 1;
         else if (t.fillTo && matches[0]) note = "La primera fila es correcta, pero al copiar la fórmula hacia abajo falla (¿faltan $?).";
       }
       items.push({ id: t.id, part: "formulas", level: t.level, topic: t.topic, score,
-        label: t.text.replace(/<[^>]+>/g, ""), given: f || "No lo sé", correct: t.solution, note });
+        label, given: f || "Sin respuesta", correct: t.solution, note });
     });
     const r = state.fileResult;
     if (r) r.checks.forEach((c) => items.push({ ...c, part: "archivo" }));
-    else if (state.fileSkipped) {
-      // Mismos ítems con puntaje cero para que la práctica pese igual.
-      FileTask.CHECK_DEFS.forEach((c) => items.push({ ...c, part: "archivo", score: 0, note: "Parte omitida." }));
-    }
+    // Sin archivo, el caso práctico cuenta con puntaje cero para que pese igual.
+    else FileTask.CHECK_DEFS.forEach((c) => items.push({ ...c, part: "archivo", score: 0, note: "No se subió el archivo." }));
     return items;
   }
 
@@ -452,7 +472,7 @@
     const mail = cfg.contactEmail ? `mailto:${cfg.contactEmail}?subject=${encodeURIComponent("Resultado test de Excel - " + s.name)}&body=${encodeURIComponent(shareText)}` : "";
     const wa = cfg.whatsappNumber ? `https://wa.me/${cfg.whatsappNumber}?text=${encodeURIComponent(shareText)}` : "";
     const ring = 2 * Math.PI * 52;
-    const partName = { teoria: "Conocimientos", formulas: "Fórmulas", archivo: "Práctica con archivo" };
+    const partName = { teoria: "Conocimientos", formulas: "Ejercicios", archivo: "Caso práctico" };
 
     app.innerHTML = `
       <section class="card result-hero">
@@ -480,7 +500,7 @@
         </div>
         <div class="chips">
           ${Object.entries(res.parts).map(([k, v]) => `<span class="chip">${partName[k] || k}: <b>${v}%</b></span>`).join("")}
-          ${state.fileSkipped ? `<span class="chip warn">Práctica omitida</span>` : ""}
+          ${state.fileResult ? "" : `<span class="chip warn">Sin archivo de Excel</span>`}
           ${minutesTaken() !== "" ? `<span class="chip">Tiempo: ${minutesTaken()} min</span>` : ""}
         </div>
       </section>
@@ -526,7 +546,7 @@
   }
 
   function reviewHtml(items) {
-    const parts = [["teoria", "Conocimientos"], ["formulas", "Fórmulas"], ["archivo", "Práctica con archivo"]];
+    const parts = [["teoria", "Conocimientos"], ["formulas", "Ejercicios"], ["archivo", "Caso práctico"]];
     const icon = (s) => (s >= 1 ? `<span class="tag ok">✔</span>` : s > 0 ? `<span class="tag mid">½</span>` : `<span class="tag bad">✘</span>`);
     return `<section class="card">
       <h2>Revisión detallada</h2>
